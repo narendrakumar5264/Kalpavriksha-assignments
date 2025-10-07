@@ -1,88 +1,64 @@
 #include <stdio.h>
-
 #include <stdbool.h>
 
-
-bool IsSpace(char c){
-     if(c == ' ' || c == '\t' || c == '\n'){
-        return true;
-     }
-     return false;
- }
-
-bool IsDigit(char c){
-    if(c >= '0' && c <= '9'){
-        return true;
-    }
-    return false;
+bool isSpaceCharacter(char character) {
+    return (character == ' ' || character == '\t' || character == '\n');
 }
 
-
+bool isDigitCharacter(char character) {
+    return (character >= '0' && character <= '9');
+}
 
 int main() {
-    char exp[100];
+    char expression[100];
+    printf("Enter expression: ");
+    fgets(expression, sizeof(expression), stdin);
 
-    printf("Enter expression:");
-    fgets(exp, sizeof(exp), stdin);
+    int totalResult = 0;
+    int currentNumber = 0;
+    int previousNumber = 0;
+    char currentOperator = '+';
 
-    int result = 0;       
-    int current = 0;      
-    int last = 0; 
+    for (int index = 0; expression[index] != '\0' && expression[index] != '\n'; index++) {
+        char currentChar = expression[index];
 
-    char op = '+';   
+        if (isSpaceCharacter(currentChar)) {
+            continue;
+        }
 
-    for (int i = 0; exp[i] != '\0' && exp[i] != '\n'; i++) {
-        char c = exp[i];
-        // check for spaces
-
-        if (IsSpace(c)) 
-        {
-            continue ;
-        } 
-    
-        // check for digits
-
-        if (IsDigit(c)) {
-            current = 0;
-            while (IsDigit(exp[i])) {
-                current = current * 10 + (exp[i] - '0');
-                i++;
+        if (isDigitCharacter(currentChar)) {
+            currentNumber = 0;
+            while (isDigitCharacter(expression[index])) {
+                currentNumber = currentNumber * 10 + (expression[index] - '0');
+                index++;
             }
-            i--; 
+            index--;
 
-            if (op == '*') { 
-                last = last * current;
-            }
-            else if (op == '/') {
-                if (current == 0) {
+            if (currentOperator == '*') {
+                previousNumber *= currentNumber;
+            } else if (currentOperator == '/') {
+                if (currentNumber == 0) {
                     printf("Error: Division by zero.\n");
                     return 0;
                 }
-                last = last / current;
+                previousNumber /= currentNumber;
+            } else if (currentOperator == '+') {
+                totalResult += previousNumber;
+                previousNumber = currentNumber;
+            } else if (currentOperator == '-') {
+                totalResult += previousNumber;
+                previousNumber = -currentNumber;
             }
-            else if (op == '+') {
-                result += last; 
-                last = current;
-            }
-            else if (op == '-') {
-                result += last; 
-                last = -current;
-            }
-        }
-        // check for operators
-        else if (c == '+' || c == '-' || c == '*' || c == '/') {
-            op = c; 
-        }
-        // invalid expression
-        else {
+        } else if (currentChar == '+' || currentChar == '-' || currentChar == '*' || currentChar == '/') {
+            currentOperator = currentChar;
+        } else {
             printf("Error: Invalid expression.\n");
             return 0;
         }
     }
 
-    result += last; 
-
-    printf("%d\n", result);
+    totalResult += previousNumber;
+    printf("%d\n", totalResult);
 
     return 0;
 }
