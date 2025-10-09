@@ -11,11 +11,9 @@ typedef struct {
 
 void createUser() {
     User newUser;
-    FILE *filePointer;
-
-    filePointer = fopen(FILE_NAME, "a");
+    FILE *filePointer = fopen(FILE_NAME, "a");
     if (filePointer == NULL) {
-        printf("Error opening file.\n");
+        perror("Error opening file");
         return;
     }
 
@@ -35,15 +33,14 @@ void createUser() {
 }
 
 void viewUsers() {
-    FILE *filePointer;
-    char line[100];
-
-    filePointer = fopen(FILE_NAME, "r");
+    FILE *filePointer = fopen(FILE_NAME, "r");
     if (filePointer == NULL) {
+        perror("Error opening file");
         printf("No users found.\n");
         return;
     }
 
+    char line[100];
     printf("\n--- All Users ---\n");
     while (fgets(line, sizeof(line), filePointer)) {
         printf("%s", line);
@@ -57,7 +54,9 @@ void updateUser() {
     FILE *tempFile = fopen("temp.txt", "w");
 
     if (filePointer == NULL || tempFile == NULL) {
-        printf("Error opening file.\n");
+        perror("Error opening file");
+        if (filePointer) fclose(filePointer);
+        if (tempFile) fclose(tempFile);
         return;
     }
 
@@ -71,10 +70,8 @@ void updateUser() {
         if (currentUser.id == targetId) {
             printf("Enter new Name: ");
             scanf("%s", currentUser.name);
-
             printf("Enter new Age: ");
             scanf("%d", &currentUser.age);
-
             found = 1;
         }
         fprintf(tempFile, "%d %s %d\n", currentUser.id, currentUser.name, currentUser.age);
@@ -83,14 +80,15 @@ void updateUser() {
     fclose(filePointer);
     fclose(tempFile);
 
-    remove(FILE_NAME);
-    rename("temp.txt", FILE_NAME);
-
-    if (found) {
-        printf("User updated successfully.\n");
-    } else {
-        printf("User not found.\n");
+    if (remove(FILE_NAME) != 0 || rename("temp.txt", FILE_NAME) != 0) {
+        perror("Error updating file");
+        return;
     }
+
+    if (found)
+        printf("User updated successfully.\n");
+    else
+        printf("User not found.\n");
 }
 
 void deleteUser() {
@@ -98,7 +96,9 @@ void deleteUser() {
     FILE *tempFile = fopen("temp.txt", "w");
 
     if (filePointer == NULL || tempFile == NULL) {
-        printf("Error opening file.\n");
+        perror("Error opening file");
+        if (filePointer) fclose(filePointer);
+        if (tempFile) fclose(tempFile);
         return;
     }
 
@@ -123,8 +123,10 @@ void deleteUser() {
     fclose(tempFile);
 
     if (found) {
-        remove(FILE_NAME);
-        rename("temp.txt", FILE_NAME);
+        if (remove(FILE_NAME) != 0 || rename("temp.txt", FILE_NAME) != 0) {
+            perror("Error deleting user");
+            return;
+        }
         printf("User deleted successfully.\n");
     } else {
         remove("temp.txt");
