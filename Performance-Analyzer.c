@@ -1,36 +1,53 @@
 #include <stdio.h>
+#include <stdbool.h>
 
-struct student {
-    int Roll;
-    char Name[50];
-    float Marks[3];
-    float Total;
-    float Average;
-    char Grade;
+#define NUM_SUBJECTS 3
+#define MAX_STUDENTS 100
+
+struct Student {
+    int rollNumber;
+    char name[50];
+    float marks[NUM_SUBJECTS];
+    float totalMarks;
+    float averageMarks;
+    char grade;
 };
 
-float Calculate_TotalMarks(float marks[]) {
-    return marks[0] + marks[1] + marks[2];
+bool isValidMark(float mark) {
+    return mark >= 0 && mark <= 100;
 }
 
-float Calculate_AverageMarks(float Total) {
-    return Total / 3;
+float calculateTotalMarks(float marks[]) {
+    float total = 0;
+    for (int subjectIndex = 0; subjectIndex < NUM_SUBJECTS; subjectIndex++) {
+        total += marks[subjectIndex];
+    }
+    return total;
 }
 
-char Calculate_Student_Grades(float average) {
-    if (average >= 85)
+float calculateAverageMarks(float totalMarks) {
+    return totalMarks / NUM_SUBJECTS;
+}
+
+char calculateStudentGrade(float average) {
+    if (average >= 85) {
         return 'A';
-    else if (average >= 70)
+    }
+    else if (average >= 70) {
         return 'B';
-    else if (average >= 50)
+    }
+    else if (average >= 50) {
         return 'C';
-    else if (average >= 35)
-        return 'D';
-    else
+    }
+    else if (average >= 35) {
+         return 'D';
+    }
+    else {
         return 'F';
+    }
 }
 
-void Display_Performance(char grade) {
+void displayPerformance(char grade) {
     int stars = 0;
     switch (grade) {
         case 'A': stars = 5; break;
@@ -39,58 +56,77 @@ void Display_Performance(char grade) {
         case 'D': stars = 2; break;
         default: stars = 0;
     }
-    for (int i = 0; i < stars; i++) {
+    for (int count = 0; count < stars; count++) {
         printf("*");
     }
 }
 
-void Print_Roll_Numbers(struct student students[], int index, int n) {
-    if (index == n)
+void printRollNumbers(struct Student studentList[], int currentIndex, int totalStudents) {
+    if (currentIndex == totalStudents){
         return;
-    printf("%d ", students[index].Roll);
-
-    Print_Roll_Numbers(students, index + 1, n);
+    }
+    printf("%d ", studentList[currentIndex].rollNumber);
+    printRollNumbers(studentList, currentIndex + 1, totalStudents);
 }
 
 int main() {
-    struct student students[100];
-    int n;
+    struct Student studentList[MAX_STUDENTS];
+    int totalStudents;
 
     printf("Enter number of students: ");
-    scanf("%d", &n);
 
-    for (int i = 0; i < n; i++) {
-        printf("\nEnter details for student %d\n", i + 1);
+    if (scanf("%d", &totalStudents) != 1 || totalStudents <= 0 || totalStudents > MAX_STUDENTS) {
+        printf("Invalid number of students. Must be between 1 and %d.\n", MAX_STUDENTS);
+        return 1;
+    }
+
+    for (int studentIndex = 0; studentIndex < totalStudents; studentIndex++) {
+        printf("\nEnter details for student %d\n", studentIndex + 1);
+
         printf("Enter Roll Number: ");
-        scanf("%d", &students[i].Roll);
-        printf("Enter Name: ");
-        scanf("%s", students[i].Name);
-        printf("Enter marks in 3 subjects: ");
-        scanf("%f %f %f", &students[i].Marks[0], &students[i].Marks[1], &students[i].Marks[2]);
-        
-        students[i].Total = Calculate_TotalMarks(students[i].Marks);
-        students[i].Average = Calculate_AverageMarks(students[i].Total);
-        students[i].Grade = Calculate_Student_Grades(students[i].Average);
-    }
-
-    printf("\n---------- Student Results ----------\n");
-
-    for (int i = 0; i < n; i++) {
-        printf("\nRoll: %d\n", students[i].Roll);
-        printf("Name: %s\n", students[i].Name);
-        printf("Total: %.2f\n", students[i].Total);
-        printf("Average: %.2f\n", students[i].Average);
-        printf("Grade: %c\n", students[i].Grade);
-        if (students[i].Average < 35) {
-            continue;
+        if (scanf("%d", &studentList[studentIndex].rollNumber) != 1 || studentList[studentIndex].rollNumber <= 0) {
+            printf("Invalid roll number. Must be a positive integer.\n");
+            return 1;
         }
-        printf("Performance: ");
-        Display_Performance(students[i].Grade);
-        printf("\n");
+
+        printf("Enter Name: ");
+        if (scanf("%49s", studentList[studentIndex].name) != 1) {
+            printf("Invalid name input.\n");
+            return 1;
+        }
+
+        printf("Enter marks in %d subjects: ", NUM_SUBJECTS);
+        for (int subjectIndex = 0; subjectIndex < NUM_SUBJECTS; subjectIndex++) {
+            if (scanf("%f", &studentList[studentIndex].marks[subjectIndex]) != 1 ||
+                !isValidMark(studentList[studentIndex].marks[subjectIndex])) {
+                printf(" Invalid mark. Must be between 0 and 100.\n");
+                return 1;
+            }
+        }
+
+        studentList[studentIndex].totalMarks = calculateTotalMarks(studentList[studentIndex].marks);
+        studentList[studentIndex].averageMarks = calculateAverageMarks(studentList[studentIndex].totalMarks);
+        studentList[studentIndex].grade = calculateStudentGrade(studentList[studentIndex].averageMarks);
     }
 
-    printf("\nList of Roll Numbers (via recursion): ");
-    Print_Roll_Numbers(students, 0, n);
+    printf("\n--------- Student Results ----------\n");
+
+    for (int studentIndex = 0; studentIndex < totalStudents; studentIndex++) {
+        printf("\nRoll: %d\n", studentList[studentIndex].rollNumber);
+        printf("Name: %s\n", studentList[studentIndex].name);
+        printf("Total: %.2f\n", studentList[studentIndex].totalMarks);
+        printf("Average: %.2f\n", studentList[studentIndex].averageMarks);
+        printf("Grade: %c\n", studentList[studentIndex].grade);
+
+        if (studentList[studentIndex].averageMarks >= 35) {
+            printf("Performance: ");
+            displayPerformance(studentList[studentIndex].grade);
+            printf("\n");
+        }
+    }
+
+   
+    printRollNumbers(studentList, 0, totalStudents);
     printf("\n");
 
     return 0;
