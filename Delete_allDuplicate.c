@@ -23,17 +23,33 @@ void printList(struct Node* head) {
 }
 
 struct Node* deleteDuplicates(struct Node* head) {
-    struct Node* current = head;
-    while (current && current->next) {
-        if (current->data == current->next->data) {
-            struct Node* temp = current->next;
-            current->next = temp->next;
+    if (!head) return NULL;
+
+    struct Node dummy;
+    dummy.next = head;
+    struct Node* prev = &dummy;
+
+    while (head) {
+        int duplicate = 0;
+        while (head->next && head->data == head->next->data) {
+            struct Node* temp = head->next;
+            head->next = temp->next;
             free(temp);
+            duplicate = 1;
+        }
+
+        if (duplicate) {
+            struct Node* temp = head;
+            head = head->next;
+            free(temp);
+            prev->next = head;
         } else {
-            current = current->next;
+            prev = head;
+            head = head->next;
         }
     }
-    return head;
+
+    return dummy.next;
 }
 
 int main() {
@@ -44,7 +60,7 @@ int main() {
     scanf("%d", &n);
 
     printf("Enter %d sorted elements:\n", n);
-    for (int index = 0; index < n; index++) {
+    for (int i = 0; i < n; i++) {
         scanf("%d", &data);
         struct Node* newNode = createNode(data);
         if (!head)
@@ -60,7 +76,7 @@ int main() {
 
     head = deleteDuplicates(head);
 
-    printf("\nAfter Removing Duplicates :\n");
+    printf("\nAfter Removing Duplicates:\n");
     printList(head);
 
     return 0;
