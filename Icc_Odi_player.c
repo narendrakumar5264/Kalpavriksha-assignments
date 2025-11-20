@@ -24,8 +24,17 @@ typedef struct {
     double avgBattingStrikeRate;
 } TeamInfo;
 
-
 double compute_perf_index(const MyPlayer *playerData){
+    if(playerData->battingAverage == 0 || playerData->strikeRate == 0){
+        if(playerData->role == ROLE_BOWLER){
+            return (playerData->wickets * 2.0) + (100.0 - playerData->economyRate);
+        }
+        if(playerData->role == ROLE_ALLROUNDER){
+            return (playerData->wickets * 2.0);
+        }
+        return 0;
+    }
+
     if(playerData->role == ROLE_BATSMAN){
         return (playerData->battingAverage * playerData->strikeRate) / 100.0;
     } 
@@ -48,7 +57,6 @@ const char* role_to_string(RoleType roleType){
     return "All-rounder";
 }
 
-
 int compare_perf_desc(const void *firstData, const void *secondData){
     const MyPlayer *firstPlayer = firstData;
     const MyPlayer *secondPlayer = secondData;
@@ -58,7 +66,6 @@ int compare_perf_desc(const void *firstData, const void *secondData){
     return 0;
 }
 
-
 int find_team_index(TeamInfo teamsInfoArray[], int totalTeams, const char *teamName){
     for(int teamIndex = 0; teamIndex < totalTeams; teamIndex++){
         if(strcasecmp(teamsInfoArray[teamIndex].name, teamName) == 0)
@@ -66,7 +73,6 @@ int find_team_index(TeamInfo teamsInfoArray[], int totalTeams, const char *teamN
     }
     return -1;
 }
-
 
 void print_player_list(MyPlayer playerList[], int listSize){
     printf("====================================================================================\n");
@@ -89,11 +95,11 @@ void print_player_list(MyPlayer playerList[], int listSize){
     printf("====================================================================================\n");
 }
 
-
 int main(){
 
     int totalPlayers = playerCount;
     MyPlayer *allPlayers = malloc(sizeof(MyPlayer) * totalPlayers);
+    if(!allPlayers) return 1;
 
     for(int playerIndex = 0; playerIndex < totalPlayers; playerIndex++){
         allPlayers[playerIndex].playerId = players[playerIndex].id;
@@ -110,6 +116,7 @@ int main(){
 
     int totalTeams = teamCount;
     TeamInfo *teamsInfo = malloc(sizeof(TeamInfo) * totalTeams);
+    if(!teamsInfo) return 1;
 
     for(int index = 0; index < totalTeams; index++){
         strcpy(teamsInfo[index].name, teams[index]);
@@ -140,10 +147,10 @@ int main(){
             }
         }
 
-        teamsInfo[teamIndex].avgBattingStrikeRate =
-            (strikerCount == 0 ? 0 : strikeRateSum / strikerCount);
-    }
+      teamsInfo[teamIndex].avgBattingStrikeRate =
+               (strikerCount <= 0 ? 0 : strikeRateSum / strikerCount);
 
+    }
 
     while(1){
         printf("\n==============================================================================\n");
@@ -177,6 +184,7 @@ int main(){
             }
 
             MyPlayer *teamPlayerList = malloc(sizeof(MyPlayer) * teamsInfo[teamIndex].totalPlayers);
+            if(!teamPlayerList) return 1;
             int filteredCount = 0;
 
             for(int playerIndex = 0; playerIndex < totalPlayers; playerIndex++){
@@ -246,6 +254,7 @@ int main(){
             scanf("%d", &topKCount);
 
             MyPlayer *roleFilteredList = malloc(sizeof(MyPlayer) * teamsInfo[teamIndex].totalPlayers);
+            if(!roleFilteredList) return 1;
             int filteredCount = 0;
 
             for(int playerIndex = 0; playerIndex < totalPlayers; playerIndex++){
@@ -282,6 +291,7 @@ int main(){
             scanf("%d", &selectedRoleType);
 
             MyPlayer *roleFilteredList = malloc(sizeof(MyPlayer) * totalPlayers);
+            if(!roleFilteredList) return 1;
             int filteredCount = 0;
 
             for(int playerIndex = 0; playerIndex < totalPlayers; playerIndex++){
