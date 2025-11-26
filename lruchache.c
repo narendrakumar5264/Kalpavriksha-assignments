@@ -30,96 +30,95 @@ unsigned int hashFunction(int key) {
 }
 
 Node* createNode(int key, const char *value) {
-    Node *n = (Node*)malloc(sizeof(Node));
-    n->key = key;
-    strcpy(n->value, value);
-    n->prev = n->next = NULL;
-    return n;
+    Node *node = (Node*)malloc(sizeof(Node));
+    if (!node) return NULL;
+    node->key = key;
+    strcpy(node->value, value);
+    node->prev = node->next = NULL;
+    return node;
 }
 
-HashEntry* createHashEntry(int key, Node *node) {
-    HashEntry *h = (HashEntry*)malloc(sizeof(HashEntry));
-    h->key = key;
-    h->node = node;
-    h->next = NULL;
-    return h;
+HashEntry* createHashEntry(int key, Node *nodePtr) {
+    HashEntry *entry = (HashEntry*)malloc(sizeof(HashEntry));
+    if (!entry) return NULL;
+    entry->key = key;
+    entry->node = nodePtr;
+    entry->next = NULL;
+    return entry;
 }
 
-void hashmapInsert(LRUCache *cache, int key, Node *node) {
-    unsigned int h = hashFunction(key);
-    HashEntry *entry = createHashEntry(key, node);
-    entry->next = cache->hash[h];
-    cache->hash[h] = entry;
+void hashmapInsert(LRUCache *cache, int key, Node *nodePtr) {
+    unsigned int index = hashFunction(key);
+    HashEntry *entry = createHashEntry(key, nodePtr);
+    if (!entry) return;
+    entry->next = cache->hash[index];
+    cache->hash[index] = entry;
 }
 
 Node* hashmapGet(LRUCache *cache, int key) {
-    unsigned int h = hashFunction(key);
-    HashEntry *cur = cache->hash[h];
-    while (cur) {
-        if (cur->key == key)
-            return cur->node;
-        cur = cur->next;
+    unsigned int index = hashFunction(key);
+    HashEntry *current = cache->hash[index];
+    while (current) {
+        if (current->key == key)
+            return current->node;
+        current = current->next;
     }
     return NULL;
 }
 
 void hashmapDelete(LRUCache *cache, int key) {
-    unsigned int h = hashFunction(key);
-    HashEntry *cur = cache->hash[h], *prev = NULL;
-    while (cur) {
-        if (cur->key == key) {
-            if (prev) prev->next = cur->next;
-            else cache->hash[h] = cur->next;
-            free(cur);
+    unsigned int index = hashFunction(key);
+    HashEntry *current = cache->hash[index], *previous = NULL;
+    while (current) {
+        if (current->key == key) {
+            if (previous) previous->next = current->next;
+            else cache->hash[index] = current->next;
+            free(current);
             return;
         }
-        prev = cur;
-        cur = cur->next;
+        previous = current;
+        current = current->next;
     }
 }
 
 void removeNode(LRUCache *cache, Node *node) {
-    if (node->prev){
+    if (node->prev)
         node->prev->next = node->next;
-    }
-    else{
+    else
         cache->head = node->next;
-    }
 
-    if (node->next){
+    if (node->next)
         node->next->prev = node->prev;
-    }
-    else{
+    else
         cache->tail = node->prev;
-    }
 }
 
 void addToFront(LRUCache *cache, Node *node) {
     node->prev = NULL;
     node->next = cache->head;
 
-    if (cache->head){
+    if (cache->head)
         cache->head->prev = node;
-    }
+
     cache->head = node;
 
-    if (!cache->tail){
+    if (!cache->tail)
         cache->tail = node;
-    }
 }
 
 LRUCache* createCache(int capacity) {
     LRUCache *cache = (LRUCache*)malloc(sizeof(LRUCache));
+    if (!cache) return NULL;
     cache->capacity = capacity;
     cache->size = 0;
     cache->head = cache->tail = NULL;
-    for (int index = 0; index < HASH_SIZE; index++){
-        cache->hash[index] = NULL;
-    }
+    for (int i = 0; i < HASH_SIZE; i++)
+        cache->hash[i] = NULL;
     return cache;
 }
 
 char* get(LRUCache *cache, int key) {
+    if (!cache) return NULL;
     Node *node = hashmapGet(cache, key);
     if (!node) return NULL;
     removeNode(cache, node);
@@ -128,6 +127,8 @@ char* get(LRUCache *cache, int key) {
 }
 
 void put(LRUCache *cache, int key, const char *value) {
+    if (!cache) return;
+
     Node *node = hashmapGet(cache, key);
 
     if (node) {
@@ -146,6 +147,8 @@ void put(LRUCache *cache, int key, const char *value) {
     }
 
     Node *newNode = createNode(key, value);
+    if (!newNode) return;
+
     addToFront(cache, newNode);
     hashmapInsert(cache, key, newNode);
     cache->size++;
@@ -162,6 +165,7 @@ int main() {
             int cap;
             scanf("%d", &cap);
             cache = createCache(cap);
+            if (!cache) return 1;
         }
         else if (strcmp(command, "put") == 0) {
             int key;
@@ -172,13 +176,14 @@ int main() {
         else if (strcmp(command, "get") == 0) {
             int key;
             scanf("%d", &key);
-            char *res = get(cache, key);
-            if (res) printf("%s\n", res);
+            char *result = get(cache, key);
+            if (result) printf("%s\n", result);
             else printf("NULL\n");
         }
         else if (strcmp(command, "exit") == 0) {
             break;
         }
     }
+
     return 0;
 }
