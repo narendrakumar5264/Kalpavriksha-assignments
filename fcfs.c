@@ -3,286 +3,309 @@
 #include <string.h>
 #include <ctype.h>
 
-typedef enum { 
+typedef enum {
     READY,
-     RUNNING,
-     WAITING,
-     TERMINATED,
-     KILLED 
-} state_t;
+    RUNNING,
+    WAITING,
+    TERMINATED,
+    KILLED
+} ProcessState;
 
-typedef struct PCB {
-    char name[64];
-    int pid;
-    int cpu_total;
-    int cpu_executed;
-    int io_start;
-    int io_duration;
-    int io_remaining;
-    state_t state;
+typedef struct ProcessControlBlock {
+    char process_name[64];
+    int process_id;
+    int total_cpu_time;
+    int executed_cpu_time;
+    int io_start_time;
+    int io_total_duration;
+    int io_remaining_time;
+    ProcessState state;
     int arrival_time;
     int completion_time;
     int killed_time;
-    struct PCB *next;
-} PCB;
+    struct ProcessControlBlock *next;
+} ProcessControlBlock;
 
 typedef struct KillEvent {
-    int pid;
-    int time;
+    int process_id;
+    int kill_time;
     struct KillEvent *next;
 } KillEvent;
 
-typedef struct Queue {
-    PCB *head;
-    PCB *tail;
-} Queue;
+typedef struct ProcessQueue {
+    ProcessControlBlock *head;
+    ProcessControlBlock *tail;
+} ProcessQueue;
 
-void q_init(Queue *queue) {
-     queue->head = queue->tail = NULL;
-     }
-
-void q_push(Queue *q, PCB *p) {
-    p->next = NULL;
-    if (!q->tail) q->head = q->tail = p;
-    else { q->tail->next = p; q->tail = p; }
+void init_queue(ProcessQueue *queue) {
+    queue->head = NULL;
+    queue->tail = NULL;
 }
 
-PCB *q_pop(Queue *q) {
-    if (!q->head)
-    { return NULL;
+void enqueue(ProcessQueue *queue, ProcessControlBlock *process) {
+    process->next = NULL;
+    if (!queue->tail) {
+        queue->head = queue->tail = process;
+    } else {
+        queue->tail->next = process;
+        queue->tail = process;
     }
-    PCB *p = q->head;
-    q->head = p->next;
-    if (!q->head) {
-        q->tail = NULL;
-    }
-    p->next = NULL;
-    return p;
 }
 
-PCB *q_remove_pid(Queue *q, int pid) {
-    PCB *prev = NULL, *cur = q->head;
-    while (cur) {
-        if (cur->pid == pid) {
-            if (prev) prev->next = cur->next;
-            else q->head = cur->next;
-            if (cur == q->tail){
-                 q->tail = prev;
-            }
-            cur->next = NULL;
-            return cur;
+ProcessControlBlock *dequeue(ProcessQueue *queue) {
+    if (!queue->head) return NULL;
+    ProcessControlBlock *process = queue->head;
+    queue->head = process->next;
+    if (!queue->head) queue->tail = NULL;
+    process->next = NULL;
+    return process;
+}
+
+ProcessControlBlock *remove_process_by_id(ProcessQueue *queue, int process_id) {
+    ProcessControlBlock *previous = NULL;
+    ProcessControlBlock *current = queue->head;
+
+    while (current) {
+        if (current->process_id == process_id) {
+            if (previous) previous->next = current->next;
+            else queue->head = current->next;
+            if (current == queue->tail) queue->tail = previous;
+            current->next = NULL;
+            return current;
         }
-        prev = cur;
-        cur = cur->next;
+        previous = current;
+        current = current->next;
     }
     return NULL;
 }
 
-PCB **all_pcbs = NULL;
-int pcb_count = 0;
-int pcb_capacity = 0;
+ProcessControlBlock **process_table = NULL;
+int process_count = 0;
+int process_capacity = 0;
 
-void add_pcb_store(PCB *p) {
-    if (pcb_count + 1 > pcb_capacity) {
-        pcb_capacity = pcb_capacity ? pcb_capacity * 2 : 8;
-        all_pcbs = realloc(all_pcbs, sizeof(PCB*) * pcb_capacity);
+void store_process(ProcessControlBlock *process) {
+    if (process_count >= process_capacity) {
+        process_capacity = process_capacity ? process_capacity * 2 : 8;
+        process_table = realloc(process_table, sizeof(ProcessControlBlock *) * process_capacity);
     }
-    all_pcbs[pcb_count++] = p;
+    process_table[process_count++] = process;
 }
 
-PCB *find_pcb_by_pid(int pid) {
-    for (int index = 0; index < pcb_count; ++index){
-        if (all_pcbs[index]->pid == pid) return all_pcbs[index];
+ProcessControlBlock *get_process_by_id(int process_id) {
+    for (int index = 0; index < process_count; index++) {
+        if (process_table[index]->process_id == process_id)
+            return process_table[index];
     }
     return NULL;
 }
 
-KillEvent *kill_events = NULL;
+KillEvent *kill_event_list = NULL;
 
-void add_kill_event(int pid, int time) {
-    KillEvent *ke = malloc(sizeof(KillEvent));
-    ke->pid = pid;
-    ke->time = time;
-    ke->next = kill_events;
-    kill_events = ke;
+void add_kill_event(int process_id, int kill_time) {
+    KillEvent *event = malloc(sizeof(KillEvent));
+    event->process_id = process_id;
+    event->kill_time = kill_time;
+    event->next = kill_event_list;
+    kill_event_list = event;
 }
 
-int apply_kills_at_time(int time, Queue *ready, Queue *waiting, PCB **running, Queue *terminated) {
-    int any = 0;
-    KillEvent *ke = kill_events;
-    while (ke) {
-        if (ke->time == time) {
-            int pid = ke->pid;
-            PCB *p = find_pcb_by_pid(pid);
-            if (!p) { ke = ke->next; continue; }
-            if (p->state == TERMINATED || p->state == KILLED) { ke = ke->next; continue; }
-            PCB *removed = NULL;
-            if (*running && (*running)->pid == pid) {
-                p = *running;
-                *running = NULL;
+void apply_kill_events(
+    int current_time,
+    ProcessQueue *ready_queue,
+    ProcessQueue *waiting_queue,
+    ProcessControlBlock **running_process,
+    ProcessQueue *terminated_queue
+) {
+    KillEvent *event = kill_event_list;
+
+    while (event) {
+        if (event->kill_time == current_time) {
+            ProcessControlBlock *process = get_process_by_id(event->process_id);
+            if (!process || process->state == TERMINATED || process->state == KILLED) {
+                event = event->next;
+                continue;
+            }
+
+            if (*running_process && (*running_process)->process_id == event->process_id) {
+                process = *running_process;
+                *running_process = NULL;
             } else {
-                removed = q_remove_pid(ready, pid);
-                if (!removed) removed = q_remove_pid(waiting, pid);
-                if (removed) p = removed;
+                process = remove_process_by_id(ready_queue, event->process_id);
+                if (!process)
+                    process = remove_process_by_id(waiting_queue, event->process_id);
             }
-            p->state = KILLED;
-            p->killed_time = time;
-            p->completion_time = time;
-            q_push(terminated, p);
-            any = 1;
+
+            process->state = KILLED;
+            process->killed_time = current_time;
+            process->completion_time = current_time;
+            enqueue(terminated_queue, process);
         }
-        ke = ke->next;
+        event = event->next;
     }
-    return any;
 }
 
-void check_io_completion(Queue *waiting, Queue *ready) {
-    PCB *prev = NULL, *cur = waiting->head;
-    while (cur) {
-        if (cur->io_remaining > 0) cur->io_remaining--;
-        PCB *next = cur->next;
-        if (cur->io_remaining == 0) {
-            cur->state = READY;
-            if (prev) prev->next = cur->next;
-            else waiting->head = cur->next;
-            if (cur == waiting->tail) waiting->tail = prev;
-            cur->next = NULL;
-            q_push(ready, cur);
+void update_io(ProcessQueue *waiting_queue, ProcessQueue *ready_queue) {
+    ProcessControlBlock *previous = NULL;
+    ProcessControlBlock *current = waiting_queue->head;
+
+    while (current) {
+        if (current->io_remaining_time > 0)
+            current->io_remaining_time--;
+
+        ProcessControlBlock *next = current->next;
+
+        if (current->io_remaining_time == 0) {
+            current->state = READY;
+            if (previous) previous->next = current->next;
+            else waiting_queue->head = current->next;
+            if (current == waiting_queue->tail) waiting_queue->tail = previous;
+            current->next = NULL;
+            enqueue(ready_queue, current);
         } else {
-            prev = cur;
+            previous = current;
         }
-        cur = next;
+        current = next;
     }
 }
 
-void print_results(Queue *terminated) {
+void print_summary(ProcessQueue *terminated_queue) {
     printf("PID\tName\tCPU\tIO\tTurnaround\tWaiting\tStatus\n");
-    PCB *cur = terminated->head;
-    while (cur) {
-        if (cur->state == KILLED) {
+    ProcessControlBlock *current = terminated_queue->head;
+
+    while (current) {
+        if (current->state == KILLED) {
             printf("%d\t%s\t%d\t%d\t-\t-\tKILLED at %d\n",
-                   cur->pid, cur->name, cur->cpu_total, cur->io_duration, cur->killed_time);
+                   current->process_id,
+                   current->process_name,
+                   current->total_cpu_time,
+                   current->io_total_duration,
+                   current->killed_time);
         } else {
-            int turnaround = cur->completion_time - cur->arrival_time;
-            int waiting = turnaround - cur->cpu_total - cur->io_duration;
-            if (waiting < 0) waiting = 0;
+            int turnaround_time = current->completion_time - current->arrival_time;
+            int waiting_time = turnaround_time - current->total_cpu_time - current->io_total_duration;
+            if (waiting_time < 0) waiting_time = 0;
             printf("%d\t%s\t%d\t%d\t%d\t%d\tOK\n",
-                   cur->pid, cur->name, cur->cpu_total, cur->io_duration, turnaround, waiting);
+                   current->process_id,
+                   current->process_name,
+                   current->total_cpu_time,
+                   current->io_total_duration,
+                   turnaround_time,
+                   waiting_time);
         }
-        cur = cur->next;
+        current = current->next;
     }
 }
 
 int main() {
-    char line[256];
-    Queue ready, waiting, terminated;
-    q_init(&ready);
-    q_init(&waiting);
-    q_init(&terminated);
+    char input_line[256];
+    ProcessQueue ready_queue, waiting_queue, terminated_queue;
+    init_queue(&ready_queue);
+    init_queue(&waiting_queue);
+    init_queue(&terminated_queue);
 
-    while (fgets(line, sizeof(line), stdin)) {
-        char *s = line;
-        while (*s && isspace((unsigned char)*s)) s++;
-        if (*s == '\0' || *s == '\n') continue;
-        if (strncasecmp(s, "KILL", 4) == 0) {
-            char tmp[8];
-            int pid, t;
-            if (sscanf(s, "%7s %d %d", tmp, &pid, &t) >= 3) {
-                add_kill_event(pid, t);
-            }
+    while (fgets(input_line, sizeof(input_line), stdin)) {
+        char *cursor = input_line;
+        while (*cursor && isspace((unsigned char)*cursor)) cursor++;
+        if (*cursor == '\0' || *cursor == '\n') continue;
+
+        if (strncasecmp(cursor, "KILL", 4) == 0) {
+            char command[8];
+            int process_id, kill_time;
+            if (sscanf(cursor, "%7s %d %d", command, &process_id, &kill_time) == 3)
+                add_kill_event(process_id, kill_time);
             continue;
         }
-        char name[64];
-        int pid, burst;
-        char io1[16], io2[16];
-        int io_start = -1, io_dur = 0;
-        int n = sscanf(s, "%63s %d %d %15s %15s", name, &pid, &burst, io1, io2);
-        if (n >= 3) {
-            if (n >= 5) {
-                if (strcmp(io1, "-") == 0 || strcmp(io1, "--") == 0) {
-                    io_start = -1;
-                    io_dur = 0;
-                } else {
-                    io_start = atoi(io1);
-                    io_dur = atoi(io2);
-                }
+
+        char process_name[64];
+        char io_start_text[16], io_duration_text[16];
+        int process_id, cpu_burst;
+        int io_start_time = -1, io_duration = 0;
+
+        int parsed = sscanf(cursor, "%63s %d %d %15s %15s",
+                            process_name, &process_id, &cpu_burst,
+                            io_start_text, io_duration_text);
+
+        if (parsed >= 3) {
+            if (parsed == 5 && strcmp(io_start_text, "-") != 0 && strcmp(io_start_text, "--") != 0) {
+                io_start_time = atoi(io_start_text);
+                io_duration = atoi(io_duration_text);
             }
-            PCB *p = malloc(sizeof(PCB));
-            memset(p, 0, sizeof(PCB));
-            strncpy(p->name, name, sizeof(p->name)-1);
-            p->pid = pid;
-            p->cpu_total = burst;
-            p->cpu_executed = 0;
-            p->io_start = io_start;
-            p->io_duration = io_dur;
-            p->io_remaining = 0;
-            p->state = READY;
-            p->arrival_time = 0;
-            p->completion_time = -1;
-            p->killed_time = -1;
-            p->next = NULL;
-            add_pcb_store(p);
-            q_push(&ready, p);
+
+            ProcessControlBlock *process = calloc(1, sizeof(ProcessControlBlock));
+            strncpy(process->process_name, process_name, sizeof(process->process_name) - 1);
+            process->process_id = process_id;
+            process->total_cpu_time = cpu_burst;
+            process->io_start_time = io_start_time;
+            process->io_total_duration = io_duration;
+            process->state = READY;
+            process->arrival_time = 0;
+            process->completion_time = -1;
+            process->killed_time = -1;
+
+            store_process(process);
+            enqueue(&ready_queue, process);
         }
     }
 
-    int time = 0;
-    PCB *running = NULL;
-
-    if (pcb_count == 0) {
+    if (process_count == 0) {
         printf("No processes provided.\n");
         return 0;
     }
 
-    while (1) {
-        apply_kills_at_time(time, &ready, &waiting, &running, &terminated);
-        check_io_completion(&waiting, &ready);
+    int current_time = 0;
+    ProcessControlBlock *running_process = NULL;
 
-        if (!running) {
-            running = q_pop(&ready);
-            if (running) running->state = RUNNING;
+    while (1) {
+        apply_kill_events(current_time, &ready_queue, &waiting_queue, &running_process, &terminated_queue);
+        update_io(&waiting_queue, &ready_queue);
+
+        if (!running_process) {
+            running_process = dequeue(&ready_queue);
+            if (running_process) running_process->state = RUNNING;
         }
 
-        if (running) {
-            running->cpu_executed++;
-            if (running->cpu_executed >= running->cpu_total) {
-                running->state = TERMINATED;
-                running->completion_time = time + 1;
-                q_push(&terminated, running);
-                running = NULL;
-            } else {
-                if (running->io_start >= 0 &&
-                    running->cpu_executed == running->io_start &&
-                    running->io_duration > 0) {
-                    running->state = WAITING;
-                    running->io_remaining = running->io_duration;
-                    q_push(&waiting, running);
-                    running = NULL;
-                }
+        if (running_process) {
+            running_process->executed_cpu_time++;
+
+            if (running_process->executed_cpu_time >= running_process->total_cpu_time) {
+                running_process->state = TERMINATED;
+                running_process->completion_time = current_time + 1;
+                enqueue(&terminated_queue, running_process);
+                running_process = NULL;
+            } else if (running_process->io_start_time >= 0 &&
+                       running_process->executed_cpu_time == running_process->io_start_time &&
+                       running_process->io_total_duration > 0) {
+                running_process->state = WAITING;
+                running_process->io_remaining_time = running_process->io_total_duration;
+                enqueue(&waiting_queue, running_process);
+                running_process = NULL;
             }
         }
 
-        time++;
+        current_time++;
 
-        int done = 1;
-        for (int index = 0; index < pcb_count; ++index) {
-            if (all_pcbs[index]->state != TERMINATED &&
-                all_pcbs[index]->state != KILLED) {
-                done = 0;
+        int all_done = 1;
+        for (int index = 0; index < process_count; index++) {
+            if (process_table[index]->state != TERMINATED &&
+                process_table[index]->state != KILLED) {
+                all_done = 0;
                 break;
             }
         }
-        if (done) break;
+        if (all_done) break;
     }
 
-    print_results(&terminated);
+    print_summary(&terminated_queue);
 
-    for (int i = 0; i < pcb_count; ++i) free(all_pcbs[i]);
-    free(all_pcbs);
-    while (kill_events) {
-        KillEvent *k = kill_events;
-        kill_events = k->next;
-        free(k);
+    for (int index = 0; index < process_count; index++)
+        free(process_table[index]);
+    free(process_table);
+
+    while (kill_event_list) {
+        KillEvent *temp = kill_event_list;
+        kill_event_list = kill_event_list->next;
+        free(temp);
     }
+
     return 0;
 }
