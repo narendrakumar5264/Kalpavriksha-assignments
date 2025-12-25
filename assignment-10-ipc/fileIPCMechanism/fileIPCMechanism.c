@@ -2,111 +2,120 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#define FILENAME "file_ipc_data.txt"
-#define MAXN 100
 
-void inputArray(int *arr, int n);
-void printArray(int *arr, int n, const char *label);
-void sortArray(int *arr, int n);
-void readArrayFromFile(char *filename, int *arr, int *n);
-void writeArrayToFile(char *filename, int *arr, int n);
+#define FILENAME "file_ipc_data.txt"
+#define MAX_ELEMENTS 100
+
+void inputArray(int *numbers, int elementCount);
+void printArray(int *numbers, int elementCount, const char *label);
+void sortArray(int *numbers, int elementCount);
+void readArrayFromFile(char *filename, int *numbers, int *fileElementCount);
+void writeArrayToFile(char *filename, int *numbers, int elementCount);
 
 int main()
 {
-    int n;
+    int elementCount;
     printf("Enter the number of elements: ");
-    scanf("%d", &n);
+    scanf("%d", &elementCount);
 
-    int arr[n];
-    inputArray(arr, n);
-    printArray(arr, n, "Before sorting");
+    int numbers[elementCount];
+    inputArray(numbers, elementCount);
+    printArray(numbers, elementCount, "Before sorting");
 
-    writeArrayToFile(FILENAME, arr, n);
+    writeArrayToFile(FILENAME, numbers, elementCount);
 
-    pid_t pid = fork();
-    if (pid == 0)
+    pid_t processId = fork();
+
+    if (processId == 0)
     {
-        int childArr[MAXN];
-        int m;
-        readArrayFromFile(FILENAME, childArr, &m);
-        sortArray(childArr, m);
-        writeArrayToFile(FILENAME, childArr, m);
+        int childNumbers[MAX_ELEMENTS];
+        int fileElementCount;
+
+        readArrayFromFile(FILENAME, childNumbers, &fileElementCount);
+        sortArray(childNumbers, fileElementCount);
+        writeArrayToFile(FILENAME, childNumbers, fileElementCount);
     }
     else
     {
         wait(NULL);
-        int parentArr[MAXN];
-        int m;
-        readArrayFromFile(FILENAME, parentArr, &m);
-        printArray(parentArr, m, "After sorting");
+
+        int parentNumbers[MAX_ELEMENTS];
+        int fileElementCount;
+
+        readArrayFromFile(FILENAME, parentNumbers, &fileElementCount);
+        printArray(parentNumbers, fileElementCount, "After sorting");
     }
 
     return 0;
 }
 
-void inputArray(int *arr, int n)
+void inputArray(int *numbers, int elementCount)
 {
-    for (int i = 0; i < n; i++)
+    for (int index = 0; index < elementCount; index++)
     {
-        scanf("%d", &arr[i]);
+        scanf("%d", &numbers[index]);
     }
 }
 
-void printArray(int *arr, int n, const char *label)
+void printArray(int *numbers, int elementCount, const char *label)
 {
     printf("%s: ", label);
-    for (int i = 0; i < n; i++)
+    for (int index = 0; index < elementCount; index++)
     {
-        printf("%d ", arr[i]);
+        printf("%d ", numbers[index]);
     }
     printf("\n");
 }
 
-void sortArray(int *arr, int n)
+void sortArray(int *numbers, int elementCount)
 {
-    for (int i = 0; i < n; i++)
+    for (int index = 0; index < elementCount; index++)
     {
-        for (int j = i + 1; j < n; j++)
+        for (int compareIndex = index + 1; compareIndex < elementCount; compareIndex++)
         {
-            if (arr[j] < arr[i])
+            if (numbers[compareIndex] < numbers[index])
             {
-                int temp = arr[i];
-                arr[i] = arr[j];
-                arr[j] = temp;
+                int temp = numbers[index];
+                numbers[index] = numbers[compareIndex];
+                numbers[compareIndex] = temp;
             }
         }
     }
 }
 
-void readArrayFromFile(char *filename, int *arr, int *n)
+void readArrayFromFile(char *filename, int *numbers, int *fileElementCount)
 {
-    FILE *fileptr = fopen(filename, "r+");
-    if (!fileptr)
+    FILE *filePointer = fopen(filename, "r");
+    if (!filePointer)
     {
-        perror("fopen error (read)");
+        perror("File open error");
         return;
     }
-    fscanf(fileptr, "%d", n);
-    for (int i = 0; i < *n; i++)
+
+    fscanf(filePointer, "%d", fileElementCount);
+    for (int index = 0; index < *fileElementCount; index++)
     {
-        fscanf(fileptr, "%d", &arr[i]);
+        fscanf(filePointer, "%d", &numbers[index]);
     }
-    fclose(fileptr);
+
+    fclose(filePointer);
 }
 
-void writeArrayToFile(char *filename, int *arr, int n)
+void writeArrayToFile(char *filename, int *numbers, int elementCount)
 {
-    FILE *fileptr = fopen(filename, "w");
-    if (!fileptr)
+    FILE *filePointer = fopen(filename, "w");
+    if (!filePointer)
     {
-        perror("fopen error (write)");
+        perror("File open error");
         return;
     }
-    fprintf(fileptr, "%d\n", n);
-    for (int i = 0; i < n; i++)
+
+    fprintf(filePointer, "%d\n", elementCount);
+    for (int index = 0; index < elementCount; index++)
     {
-        fprintf(fileptr, "%d ", arr[i]);
+        fprintf(filePointer, "%d ", numbers[index]);
     }
-    fprintf(fileptr, "\n");
-    fclose(fileptr);
+
+    fprintf(filePointer, "\n");
+    fclose(filePointer);
 }
